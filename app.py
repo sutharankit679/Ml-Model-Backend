@@ -9,21 +9,15 @@ import base64
 import io
 from PIL import Image
 
-# ===============================
-# CONFIG
-# ===============================
 MODEL_PATH = "coconut_disease_model.keras"
 
 app = Flask(__name__)
 
-# ===============================
-# 🔥 PROPER CORS (THIS IS THE FIX)
-# ===============================
+# 🔥 FINAL CORS CONFIG (WORKS ON RENDER + VERCEL)
 CORS(
     app,
-    resources={r"/api/*": {"origins": "*"}},
-    methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type"]
+    resources={r"/*": {"origins": "*"}},
+    supports_credentials=False
 )
 
 # ===============================
@@ -56,10 +50,14 @@ def predict(img):
 def home():
     return "Coconut Disease Prediction API is running."
 
-@app.route("/api/predict", methods=["POST"])
+# 🔥 IMPORTANT: OPTIONS + POST BOTH
+@app.route("/api/predict", methods=["POST", "OPTIONS"])
 def generate():
-    data = request.get_json(silent=True)
+    # Preflight request
+    if request.method == "OPTIONS":
+        return jsonify({"status": "ok"}), 200
 
+    data = request.get_json(silent=True)
     if not data or "imageSrc" not in data:
         return jsonify({"error": "No image data provided"}), 400
 
@@ -70,3 +68,4 @@ def generate():
         return jsonify({"error": str(e)}), 400
 
     return jsonify(predict(img))
+
