@@ -1,3 +1,6 @@
+import os
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+
 from flask import Flask, request, jsonify
 import tensorflow as tf
 import numpy as np
@@ -9,8 +12,6 @@ from flask_cors import CORS
 MODEL_PATH = "coconut_disease_model .keras"
 # Create an instance of the Flask class
 app = Flask(__name__)
-
-TF_ENABLE_ONEDNN_OPTS=0
 
 # Replace with your Vercel frontend URL
 FRONTEND_URL = 'https://coconut-disease-detection.vercel.app'
@@ -52,7 +53,8 @@ def home():
 # Use the route() decorator to tell Flask what URL should trigger the function
 @app.route("/api/predict", methods=["POST"])
 def generate():
-    img_data = request.args.post("imageSrc")
+    data = request.get_json()
+img_data = data.get("imageSrc")
     if not img_data:
         return jsonify({"error": "No image data provided"}), 400
 
@@ -65,3 +67,4 @@ def generate():
 
     prediction = predict(img)
     return jsonify(prediction)
+
