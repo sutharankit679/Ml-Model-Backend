@@ -64,8 +64,13 @@ def predict(img: Image.Image):
 def home():
     return "Coconut Disease Prediction API is running."
 
-@app.route("/api/predict", methods=["POST"])
+@app.route("/api/predict", methods=["GET", "POST"])
 def generate():
+    if request.method == "GET":
+        return jsonify({
+            "message": "API is working. Use POST with imageSrc."
+        })
+
     data = request.get_json(silent=True)
 
     if not data or "imageSrc" not in data:
@@ -82,8 +87,10 @@ def generate():
     result = predict(img)
     return jsonify(result)
 
+
 # ===============================
 # MAIN (for local testing only)
 # ===============================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
