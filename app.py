@@ -66,3 +66,4 @@ def generate():
 
     prediction = predict(img)
     return jsonify(prediction)
+
