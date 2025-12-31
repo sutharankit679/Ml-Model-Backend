@@ -1,4 +1,9 @@
 import os
+
+# ===============================
+# 🔥 IMPORTANT: FORCE CPU ONLY
+# ===============================
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
 from flask import Flask, request, jsonify
@@ -12,13 +17,17 @@ from PIL import Image
 # CONFIG
 # ===============================
 MODEL_PATH = "coconut_disease_model.keras"
+IMAGE_SIZE = (224, 224)
 
 app = Flask(__name__)
 
 # ===============================
-# LOAD MODEL (ONCE)
+# 🔥 LOAD MODEL ONCE (VERY IMPORTANT)
 # ===============================
-model = tf.keras.models.load_model(MODEL_PATH, compile=False)
+model = tf.keras.models.load_model(
+    MODEL_PATH,
+    compile=False
+)
 
 CLASS_NAMES = [
     "Bud Root",
@@ -31,12 +40,16 @@ CLASS_NAMES = [
 # ===============================
 # PREDICTION FUNCTION
 # ===============================
-def predict(img: Image.Image):
-    img = img.resize((224, 224))
-    img = np.array(img) / 255.0
-    img = np.expand_dims(img, axis=0)
+def predict_image(img: Image.Image):
+    # Resize (HARD LIMIT for memory safety)
+    img = img.resize(IMAGE_SIZE)
 
-    preds = model.predict(img)[0]
+    # Normalize
+    img_arr = np.array(img, dtype=np.float32) / 255.0
+    img_arr = np.expand_dims(img_arr, axis=0)
+
+    # Predict
+    preds = model.predict(img_arr, verbose=0)[0]
     idx = int(np.argmax(preds))
 
     return {
@@ -49,24 +62,33 @@ def predict(img: Image.Image):
 # ===============================
 @app.route("/", methods=["GET"])
 def home():
-    return "ML Backend is running."
+    return "Coconut Disease Prediction API is running."
 
 # ===============================
 # ML PREDICTION API
-# (CALLED ONLY BY VERCEL SERVER)
 # ===============================
 @app.route("/api/predict", methods=["POST"])
-def generate():
+def predict():
     data = request.get_json(silent=True)
 
     if not data or "imageSrc" not in data:
-        return jsonify({"error": "No image data provided"}), 400
+        return jsonify({"error": "imageSrc missing"}), 400
 
     try:
-        img_bytes = base64.b64decode(data["imageSrc"])
-        img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+        # Decode base64
+        image_bytes = base64.b64decode(data["imageSrc"])
+        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     except Exception as e:
-        return jsonify({"error": f"Invalid image: {str(e)}"}), 400
+        return jsonify({
+            "error": "Invalid image data",
+            "details": str(e)
+        }), 400
 
-    result = predict(img)
-    return jsonify(result)
+    try:
+        result = predict_image(img)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({
+            "error": "Prediction failed",
+            "details": str(e)
+        }), 500
