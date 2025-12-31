@@ -2,26 +2,21 @@ import os
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
 from flask import Flask, request, jsonify
-from flask_cors import CORS
 import tensorflow as tf
 import numpy as np
 import base64
 import io
 from PIL import Image
 
+# ===============================
+# CONFIG
+# ===============================
 MODEL_PATH = "coconut_disease_model.keras"
 
 app = Flask(__name__)
 
-# 🔥 FINAL CORS CONFIG (WORKS ON RENDER + VERCEL)
-CORS(
-    app,
-    resources={r"/*": {"origins": "*"}},
-    supports_credentials=False
-)
-
 # ===============================
-# LOAD MODEL
+# LOAD MODEL (ONCE)
 # ===============================
 model = tf.keras.models.load_model(MODEL_PATH, compile=False)
 
@@ -33,7 +28,10 @@ CLASS_NAMES = [
     "Bud Root Dropping"
 ]
 
-def predict(img):
+# ===============================
+# PREDICTION FUNCTION
+# ===============================
+def predict(img: Image.Image):
     img = img.resize((224, 224))
     img = np.array(img) / 255.0
     img = np.expand_dims(img, axis=0)
@@ -46,18 +44,21 @@ def predict(img):
         "confidence": round(float(preds[idx]) * 100, 2)
     }
 
+# ===============================
+# HEALTH CHECK
+# ===============================
 @app.route("/", methods=["GET"])
 def home():
-    return "Coconut Disease Prediction API is running."
+    return "ML Backend is running."
 
-# 🔥 IMPORTANT: OPTIONS + POST BOTH
-@app.route("/api/predict", methods=["POST", "OPTIONS"])
+# ===============================
+# ML PREDICTION API
+# (CALLED ONLY BY VERCEL SERVER)
+# ===============================
+@app.route("/api/predict", methods=["POST"])
 def generate():
-    # Preflight request
-    if request.method == "OPTIONS":
-        return jsonify({"status": "ok"}), 200
-
     data = request.get_json(silent=True)
+
     if not data or "imageSrc" not in data:
         return jsonify({"error": "No image data provided"}), 400
 
@@ -65,7 +66,7 @@ def generate():
         img_bytes = base64.b64decode(data["imageSrc"])
         img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        return jsonify({"error": f"Invalid image: {str(e)}"}), 400
 
-    return jsonify(predict(img))
-
+    result = predict(img)
+    return jsonify(result)
